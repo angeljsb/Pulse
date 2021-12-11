@@ -30,5 +30,6 @@ public class Config {
     
     public static final Duration ANIMATION_TIME = Duration.millis(50);
     public static final Duration BOOST_TIME = Duration.seconds(3);
+    public static final Duration BOOST_TEXT_TIME = Duration.millis(500);
     public static final Duration TIEMPO_IMPULSO = Duration.millis(200);
 }

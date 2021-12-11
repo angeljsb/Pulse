@@ -37,16 +37,23 @@ public class Juego extends Parent {
 
     private Group root;
     private ArrayList<IActualizable> moviles = new ArrayList();
+    private ArrayList<Boost> boosts = new ArrayList();
+    private Boost[] boostsPosibles;
 
     private Bola bola;
     private Timeline timeline;
+    private Timeline timelineBoost;
     private Rectangle background;
     private StackPane pantallaPausa;
     private Text mostradorGolpes;
 
+    private Text textoBoost;
+    private Timeline opacidadBoost;
+
     private long golpes;
     private double radioImpulso = Config.RADIO_IMPULSO;
     private double fuerzaImpulso = Config.FUERZA_IMPULSO;
+    private double probabilidadBoost = Config.PROBABILIDAD_BOOST;
 
     public Juego() {
         root = new Group();
@@ -73,6 +80,7 @@ public class Juego extends Parent {
         moviles.add(bola);
 
         iniciarTimeline();
+        inicializarBoost();
 
         root.setOnMouseClicked(new EventHandler<MouseEvent>() {
             @Override
@@ -97,6 +105,7 @@ public class Juego extends Parent {
         text.setFont(new Font("Arial", 20));
         box.getChildren().addAll(instruccion, text);
         pantallaPausa.getChildren().addAll(pausaBack, box);
+        pantallaPausa.setTranslateZ(10);
 
         pantallaPausa.setOnMouseClicked(new EventHandler<MouseEvent>() {
             @Override
@@ -106,7 +115,20 @@ public class Juego extends Parent {
             }
         });
 
-        root.getChildren().addAll(background, bola, pantallaPausa, mostradorGolpes);
+        textoBoost = new Text();
+        textoBoost.setFill(Color.WHITE);
+        textoBoost.setTextOrigin(VPos.TOP);
+        textoBoost.setFont(new Font("Arial", 10));
+        textoBoost.setOpacity(0);
+
+        opacidadBoost = new Timeline();
+        opacidadBoost.setAutoReverse(true);
+        opacidadBoost.setCycleCount(2);
+        opacidadBoost.getKeyFrames().add(
+                new KeyFrame(Config.BOOST_TEXT_TIME, new KeyValue(textoBoost.opacityProperty(), 1))
+        );
+
+        root.getChildren().addAll(background, bola, pantallaPausa, mostradorGolpes, textoBoost);
 
     }
 
@@ -136,9 +158,104 @@ public class Juego extends Parent {
                     bola.setTranslateX(0);
                     bola.chocar(ObjetoFisico.IZQUIERDA);
                 }
+
+                Boost borrar = null;
+                for (Boost boost : boosts) {
+                    if (boostChoca(boost)) {
+                        activarBoost(boost);
+                        borrar = boost;
+                        break;
+                    }
+                    if (boost.getTranslateY() > Config.ALTO_CAMPO) {
+                        borrar = boost;
+                    }
+                }
+                removerBoost(borrar);
             }
         });
         timeline.getKeyFrames().add(kf);
+    }
+
+    private boolean boostChoca(Boost b) {
+        double cX = bola.getCentroX(), cY = bola.getCentroY();
+        double iX = bola.getCentroX() - bola.getVelocidad().getX(),
+                iY = bola.getCentroY() - bola.getVelocidad().getY();
+        double maxX = b.getTranslateX() + Config.ANCHO_BOOST,
+                maxY = b.getTranslateY() + Config.ALTO_BOOST;
+        return !(Math.max(cX, iX) < b.getTranslateX()
+                || Math.min(cX, iX) > maxX
+                || Math.max(cY, iY) < b.getTranslateY()
+                || Math.min(cY, iY) > maxY);
+    }
+
+    private void activarBoost(Boost b) {
+        b.golpear();
+
+        textoBoost.setText(b.getNombre());
+        textoBoost.setTranslateX(bola.getTranslateX());
+        textoBoost.setTranslateY(bola.getTranslateY());
+        opacidadBoost.play();
+    }
+
+    public void inicializarBoost() {
+
+        boostsPosibles = new Boost[]{
+            new Boost("+PG", "Poder de golpe aumentado", new Runnable() {
+                @Override
+                public void run() {
+                    fuerzaImpulso += 10;
+                }
+            }),
+            new Boost("+GR", "Gravedad aumentada", new Runnable() {
+                @Override
+                public void run() {
+                    bola.getAceleracion().sumar(0, 0.1);
+                }
+            }),
+            new Boost("+RG", "Radio golpe aumentado", new Runnable() {
+                @Override
+                public void run() {
+                    radioImpulso += 10;
+                }
+            }),
+            new Boost("-RG", "Radio golpe disminuido", new Runnable() {
+                @Override
+                public void run() {
+                    radioImpulso -= 10;
+                }
+            }),
+            new Boost("-GR", "Gravedad disminuida", new Runnable() {
+                @Override
+                public void run() {
+                    if (bola.getAceleracion().getY() > 0) {
+                        bola.getAceleracion().sumar(0, -0.1);
+                    }
+                }
+            }),
+            new Boost("-PG", "Poder de golpe disminuido", new Runnable() {
+                @Override
+                public void run() {
+                    fuerzaImpulso -= 10;
+                }
+            })
+        };
+
+        timelineBoost = new Timeline();
+        timelineBoost.setCycleCount(Timeline.INDEFINITE);
+        KeyFrame kf = new KeyFrame(Config.BOOST_TIME, new EventHandler<ActionEvent>() {
+            @Override
+            public void handle(ActionEvent event) {
+                if (Math.random() < probabilidadBoost) {
+                    Boost b = boostsPosibles[(int) Math.floor(Math.random() * boostsPosibles.length)].clonar();
+                    b.setTranslateX(Math.random() * (Config.ANCHO_CAMPO - Config.ANCHO_BOOST));
+                    b.setTranslateY(0);
+                    b.setVelocidad(0, Config.VELOCIDAD_BOOST);
+
+                    agregarBoost(b);
+                }
+            }
+        });
+        timelineBoost.getKeyFrames().add(kf);
     }
 
     private void crearImpulso(double x, double y) {
@@ -175,7 +292,7 @@ public class Juego extends Parent {
 
         if (distancia < radioImpulso) {
             double fuerzaReal = ((radioImpulso - distancia) / radioImpulso) * fuerzaImpulso;
-            
+
             double mvX, mvY;
 
             mvX = (fuerzaReal * ((radioImpulso - Math.abs(distanciaY)) / radioImpulso));
@@ -193,10 +310,17 @@ public class Juego extends Parent {
 
     public void perder() {
         timeline.stop();
-//        timelineBoost.stop();
+        timelineBoost.stop();
         bola.setTranslateX(ANCHO_CAMPO / 2);
         bola.setTranslateY(RADIO_INICIAL_BOLA);
         bola.setVelocidad(0, 0);
+        bola.setAceleracion(0, Config.GRAVEDAD_INICIAL);
+
+        while (!boosts.isEmpty()) {
+            removerBoost(boosts.get(0));
+        }
+        fuerzaImpulso = Config.FUERZA_IMPULSO;
+        radioImpulso = Config.RADIO_IMPULSO;
 
         final StackPane pantallaDerrota = new StackPane();
         VBox box = new VBox();
@@ -215,7 +339,7 @@ public class Juego extends Parent {
         box.getChildren().addAll(text, puntos);
         pantallaDerrota.getChildren().addAll(pausaBack, box);
 
-        pantallaDerrota.setOnMouseClicked( new EventHandler<MouseEvent>() {
+        pantallaDerrota.setOnMouseClicked(new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent event) {
                 root.getChildren().remove(pantallaDerrota);
@@ -228,9 +352,22 @@ public class Juego extends Parent {
 
     public void start() {
         golpes = 0;
+        //fuerzaImpulso = Config.FUERZA_IMPULSO;
         mostradorGolpes.setText("Golpes: " + golpes);
         timeline.play();
-//        timelineBoost.play();
+        timelineBoost.play();
+    }
+
+    public void agregarBoost(Boost boost) {
+        boosts.add(boost);
+        moviles.add(boost);
+        root.getChildren().add(boost);
+    }
+
+    public void removerBoost(Boost boost) {
+        boosts.remove(boost);
+        moviles.remove(boost);
+        root.getChildren().remove(boost);
     }
 
 }

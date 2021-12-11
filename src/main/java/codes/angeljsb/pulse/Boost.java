@@ -41,6 +41,7 @@ public class Boost extends Movil implements Cloneable {
         contenido.setTextAlignment(TextAlignment.CENTER);
         contenido.setTextOrigin(VPos.TOP);
         contenido.setVisible(true);
+        contenido.setTranslateX(2);
         root.getChildren().addAll(borde, contenido);
         super.getChildren().add(root);
     }
