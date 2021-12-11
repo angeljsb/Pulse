@@ -192,7 +192,7 @@ public class Juego extends Parent {
         b.golpear();
 
         textoBoost.setText(b.getNombre());
-        textoBoost.setTranslateX(bola.getTranslateX());
+        textoBoost.setTranslateX(Math.min(bola.getTranslateX(),Config.ANCHO_CAMPO - 150));
         textoBoost.setTranslateY(bola.getTranslateY());
         opacidadBoost.play();
     }
